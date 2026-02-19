@@ -50,6 +50,11 @@ private:
 private:
   PerPointTimeSettings settings;
 
+  double lidar_frame_gap_warning_threshold_;      ///< Warn if gap between LiDAR frames exceeds this [sec]
+  double points_imu_sync_warning_threshold_;      ///< Warn if |imu - last_points_stamp| exceeds this [sec]
+  double imu_gap_warning_threshold_;              ///< Warn if gap between consecutive IMU messages exceeds this [sec]
+  double max_perpoint_time_span_;                 ///< Max allowed per-point time span [sec]; frames with span > this are skipped (Livox batches may exceed 1 s)
+
   double last_points_stamp;  ///< Timestamp of the last LiDAR frame
   double last_imu_stamp;     ///< Timestamp of the last IMU data
 

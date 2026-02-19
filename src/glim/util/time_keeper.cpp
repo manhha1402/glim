@@ -1,6 +1,7 @@
 #include <glim/util/time_keeper.hpp>
 
 #include <optional>
+#include <string>
 #include <spdlog/spdlog.h>
 #include <boost/format.hpp>
 #include <glim/util/config.hpp>
@@ -24,6 +25,12 @@ PerPointTimeSettings::PerPointTimeSettings() {
 PerPointTimeSettings::~PerPointTimeSettings() {}
 
 TimeKeeper::TimeKeeper() {
+  const Config config(GlobalConfig::get_config_path("config_sensors"));
+  lidar_frame_gap_warning_threshold_ = config.param<double>("sensors", "lidar_frame_gap_warning_threshold", 0.5);
+  points_imu_sync_warning_threshold_ = config.param<double>("sensors", "points_imu_sync_warning_threshold", 1.0);
+  imu_gap_warning_threshold_ = config.param<double>("sensors", "imu_gap_warning_threshold", 0.1);
+  max_perpoint_time_span_ = config.param<double>("sensors", "max_perpoint_time_span", 1.0);
+
   last_points_stamp = -1.0;
   last_imu_stamp = -1.0;
 
@@ -41,14 +48,14 @@ bool TimeKeeper::validate_imu_stamp(const double imu_stamp) {
     spdlog::warn("IMU timestamp rewind detected!!");
     spdlog::warn("current={:.6f} last={:.6f} diff={:.6f}", imu_stamp, last_imu_stamp, imu_diff);
     return false;
-  } else if (imu_stamp - last_imu_stamp > 0.1) {
+  } else if (imu_stamp - last_imu_stamp > imu_gap_warning_threshold_) {
     spdlog::warn("large time gap between consecutive IMU data!!");
     spdlog::warn("current={:.6f} last={:.6f} diff={:.6f}", imu_stamp, last_imu_stamp, imu_diff);
   }
   last_imu_stamp = imu_stamp;
 
   const double points_diff = imu_stamp - last_points_stamp;
-  if (last_points_stamp > 0.0 && std::abs(points_diff) > 1.0) {
+  if (last_points_stamp > 0.0 && std::abs(points_diff) > points_imu_sync_warning_threshold_) {
     spdlog::warn("large time difference between points and imu!!");
     spdlog::warn("points={:.6f} imu={:.6f} diff={:.6f}", last_points_stamp, imu_stamp, points_diff);
   }
@@ -59,17 +66,18 @@ bool TimeKeeper::validate_imu_stamp(const double imu_stamp) {
 bool TimeKeeper::process(const glim::RawPoints::Ptr& points) {
   replace_points_stamp(points);
 
+  const std::string frame_info = (points->frame_index >= 0) ? " frame_index=" + std::to_string(points->frame_index) : "";
   if (points->points.size() != points->times.size()) {
-    // Here must not be reached
-    spdlog::error("inconsistent # of points and # of timestamps found after time conversion!! |points|={} |times|={}", points->points.size(), points->times.size());
+    spdlog::error("inconsistent # of points and # of timestamps found after time conversion!! |points|={} |times|={}{} stamp={:.6f}", points->points.size(), points->times.size(), frame_info, points->stamp);
+    return false;
   }
   if (points->times.front() < 0.0 || points->times.back() < 0.0) {
-    // Here must not be reached
-    spdlog::error("negative per-point timestamp is found after time conversion!! front={:.6f} back={:.6f}", points->times.front(), points->times.back());
+    spdlog::error("negative per-point timestamp is found after time conversion!! front={:.6f} back={:.6f}{} stamp={:.6f}", points->times.front(), points->times.back(), frame_info, points->stamp);
+    return false;
   }
-  if (points->times.front() > 1.0 || points->times.back() > 1.0) {
-    // Here must not be reached
-    spdlog::error("large per-point timestamp is found after time conversion!! front={:.6f} back={:.6f}", points->times.front(), points->times.back());
+  if (points->times.front() > max_perpoint_time_span_ || points->times.back() > max_perpoint_time_span_) {
+    spdlog::error("large per-point timestamp is found after time conversion!! front={:.6f} back={:.6f} (max_span={:.1f}s){} stamp={:.6f} npts={} (skip frame)", points->times.front(), points->times.back(), max_perpoint_time_span_, frame_info, points->stamp, points->size());
+    return false;
   }
   if (points->stamp < 0.0) {
     spdlog::warn("frame timestamp is negative!! frame={:.6f}", points->stamp);
@@ -85,7 +93,7 @@ bool TimeKeeper::process(const glim::RawPoints::Ptr& points) {
     spdlog::warn("point timestamp rewind detected!!");
     spdlog::warn("current={:.6f} last={:.6f} diff={:.6f}", points->stamp, last_points_stamp, time_diff);
     return false;
-  } else if (time_diff > 0.5) {
+  } else if (time_diff > lidar_frame_gap_warning_threshold_) {
     spdlog::warn("large time gap between consecutive LiDAR frames!!");
     spdlog::warn("current={:.6f} last={:.6f} diff={:.6f}", points->stamp, last_points_stamp, time_diff);
   }

@@ -12,6 +12,12 @@
   // intensity_field             : Field name used for extracting point intensity from PointCloud2 message
   // ring_field                  : Field name used for extracting ring number (laser ID) from PointCloud2 message
   //
+  // --- LiDAR frame timing (for slow lidars e.g. 1 Hz) ---
+  // lidar_frame_gap_warning_threshold : Warn if gap between consecutive LiDAR frames exceeds this [sec]. 1.5 for ~1 Hz lidar.
+  // max_perpoint_time_span            : Max allowed per-point time span [sec]. Frames with span > this are skipped. Increase for Livox multi-scan batches (e.g. 5.0).
+  // points_imu_sync_warning_threshold : Warn if |imu_stamp - last_points_stamp| exceeds this [sec].
+  // imu_gap_warning_threshold          : Warn if gap between consecutive IMU messages exceeds this [sec].
+  //
   // --- LiDAR per-point time settings ---
   // autoconf_perpoint_times     : If true, automatically configure per-point timestamps. If false, use the following settings.
   // autoconf_prefer_frame_time  : If true, frame timestamp will never be overridden by anything. Otherwise, absolute per-point timestamps will be used if available.
@@ -49,7 +55,7 @@
     "imu_int_noise": 0.001,
     "imu_bias_noise": 1e-5,
     // LiDAR config
-    "global_shutter_lidar": true,
+    "global_shutter_lidar": false,
     "T_lidar_imu": [
       -0.011,
       -0.02329,
@@ -59,8 +65,21 @@
       0.0,
       1.0
     ],
+    // "T_lidar_imu": [
+    //   0.006,
+    //   -0.012,
+    //   0.008,
+    //   0.0,
+    //   0.0,
+    //   0.0,
+    //   1.0
+    // ],
     "intensity_field": "intensity",
     "ring_field": "",
+    "lidar_frame_gap_warning_threshold": 4.0,
+    "points_imu_sync_warning_threshold": 5.0,
+    "imu_gap_warning_threshold": 3.0,
+    "max_perpoint_time_span": 5.0,
     // LiDAR per-point time settings
     "autoconf_perpoint_times": true,
     "autoconf_prefer_frame_time": true,

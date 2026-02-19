@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <memory>
 #include <vector>
 #include <iostream>
@@ -162,6 +163,26 @@ static RawPoints::Ptr extract_raw_points(const PointCloud2& points_msg, const st
           return nullptr;
       }
     }
+
+    // Livox (and some drivers) publish per-point time in various formats:
+    // - Nanoseconds (1e18): scale by 1e-9 to get seconds
+    // - Unix seconds (1e9) or seconds-since-epoch: convert to relative (subtract min) to avoid time_keeper warnings
+    if (num_points > 0) {
+      const double max_t = *std::max_element(raw_points->times.begin(), raw_points->times.end());
+      const double min_t = *std::min_element(raw_points->times.begin(), raw_points->times.end());
+      if (max_t > 1e10) {
+        for (auto& t : raw_points->times) {
+          t *= 1e-9;
+        }
+      }
+      const double max_after = *std::max_element(raw_points->times.begin(), raw_points->times.end());
+      const double min_after = *std::min_element(raw_points->times.begin(), raw_points->times.end());
+      if (max_after > 1.0) {
+        for (auto& t : raw_points->times) {
+          t = t - min_after;
+        }
+      }
+    }
   }
 
   if (intensity_offset >= 0) {
@@ -220,6 +241,12 @@ static RawPoints::Ptr extract_raw_points(const PointCloud2& points_msg, const st
         case PointField::UINT32:
           raw_points->rings[i] = *reinterpret_cast<const std::uint32_t*>(ring_ptr);
           break;
+        case PointField::FLOAT32:
+          raw_points->rings[i] = static_cast<std::uint32_t>(*reinterpret_cast<const float*>(ring_ptr));
+          break;
+        case PointField::FLOAT64:
+          raw_points->rings[i] = static_cast<std::uint32_t>(*reinterpret_cast<const double*>(ring_ptr));
+          break;
         default:
           spdlog::warn("unsupported ring type {}", ring_type);
           return nullptr;
@@ -228,6 +255,7 @@ static RawPoints::Ptr extract_raw_points(const PointCloud2& points_msg, const st
   }
 
   raw_points->stamp = to_sec(points_msg.header.stamp);
+  raw_points->frame_id = points_msg.header.frame_id;
   return raw_points;
 }
 

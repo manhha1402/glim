@@ -12,6 +12,10 @@
   // imu_time_offset        : Time offset for IMU data (in seconds)
   // acc_scale              : Accelerometer scale factor (Set to 9.80665 for Livox sensors)
   //
+  // --- Points / Livox chunked PointCloud2 ---
+  // min_lidar_frame_interval : Skip lidar frames that arrive within this [sec] of the previous. Use 0.05 to drop bursts of rapid 96-pt chunks.
+  // min_points_to_process    : Skip lidar frames with fewer raw points than this. Use 200 to avoid 96-pt chunks from chunked Livox PointCloud2.
+  //
   // --- TF config ---
   // GLIM publishes TF subtrees "map -> odom -> base_frame" and "imu -> lidar".
   // imu_frame_id           : IMU frame ID
@@ -28,6 +32,7 @@
   // --- Topics ---
   // imu_topic              : IMU topic
   // points_topic           : Points topic
+  // points_msg_type        : "PointCloud2" (default) or "LivoxCustomMsg" for livox_ros_driver2
   // image_topic            : Image topic (required for only extension modules)
   //
   // --- QoS options ---
@@ -52,7 +57,9 @@
     // IMU config
     "imu_time_offset": 0.0,
     "points_time_offset": 0.0,
-    "acc_scale": 1.0,
+    "acc_scale": 9.80665,
+    "min_lidar_frame_interval": 0.05,
+    "min_points_to_process": 200,
     // TF config
     "imu_frame_id": "imu",
     "lidar_frame_id": "lidar",
@@ -64,13 +71,14 @@
     // Extension modules
     "extension_modules": [
       "libmemory_monitor.so",
-      //"libstandard_viewer.so",
+      "libstandard_viewer.so",
       "librviz_viewer.so"
       //"libimu_validator.so"
     ],
     // Topics
     "imu_topic": "/livox/imu",
     "points_topic": "/livox/lidar",
+    "points_msg_type": "LivoxCustomMsg",
     "image_topic": "/image",
     // QoS options
     "imu_qos": {

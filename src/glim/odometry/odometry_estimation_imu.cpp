@@ -3,6 +3,7 @@
 #include <spdlog/spdlog.h>
 
 #include <gtsam/inference/Symbol.h>
+#include <gtsam/linear/linearExceptions.h>
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/nonlinear/LinearContainerFactor.h>
 
@@ -323,35 +324,42 @@ EstimationFrame::ConstPtr OdometryEstimationIMU::insert_frame(const Preprocessed
 
   new_factors.add(create_factors(current, imu_factor, new_values));
 
-  // Update smoother
-  Callbacks::on_smoother_update(*smoother, new_factors, new_values, new_stamps);
-  update_smoother(new_factors, new_values, new_stamps, 1);
-  Callbacks::on_smoother_update_finish(*smoother);
+  try {
+    // Update smoother
+    Callbacks::on_smoother_update(*smoother, new_factors, new_values, new_stamps);
+    update_smoother(new_factors, new_values, new_stamps, 1);
+    Callbacks::on_smoother_update_finish(*smoother);
 
-  // Find out marginalized frames
-  while (marginalized_cursor < current) {
-    double span = frames[current]->stamp - frames[marginalized_cursor]->stamp;
-    if (span < params->smoother_lag - 0.1) {
-      break;
+    // Find out marginalized frames
+    while (marginalized_cursor < current) {
+      double span = frames[current]->stamp - frames[marginalized_cursor]->stamp;
+      if (span < params->smoother_lag - 0.1) {
+        break;
+      }
+
+      marginalized_frames.push_back(frames[marginalized_cursor]);
+      frames[marginalized_cursor].reset();
+      marginalized_cursor++;
     }
+    logger->debug("|frames|={} |active|={} |marginalized|={}", frames.size(), frames.inner_size(), marginalized_frames.size());
+    Callbacks::on_marginalized_frames(marginalized_frames);
 
-    marginalized_frames.push_back(frames[marginalized_cursor]);
-    frames[marginalized_cursor].reset();
-    marginalized_cursor++;
-  }
-  logger->debug("|frames|={} |active|={} |marginalized|={}", frames.size(), frames.inner_size(), marginalized_frames.size());
-  Callbacks::on_marginalized_frames(marginalized_frames);
+    // Update frames
+    update_frames(current, new_factors);
 
-  // Update frames
-  update_frames(current, new_factors);
+    std::vector<EstimationFrame::ConstPtr> active_frames(frames.inner_begin(), frames.inner_end());
+    Callbacks::on_update_new_frame(active_frames.back());
+    Callbacks::on_update_frames(active_frames);
+    logger->trace("frames updated");
 
-  std::vector<EstimationFrame::ConstPtr> active_frames(frames.inner_begin(), frames.inner_end());
-  Callbacks::on_update_new_frame(active_frames.back());
-  Callbacks::on_update_frames(active_frames);
-  logger->trace("frames updated");
-
-  if (smoother->fallbackHappened()) {
-    logger->warn("odometry estimation smoother fallback happened (time={})", raw_frame->stamp);
+    if (smoother->fallbackHappened()) {
+      logger->warn("odometry estimation smoother fallback happened (time={})", raw_frame->stamp);
+    }
+  } catch (const gtsam::IndeterminantLinearSystemException& e) {
+    logger->warn("odometry smoother failed with IndeterminantLinearSystemException (time={}); skipping frame (consider increasing min_points_to_process or min_lidar_frame_interval)", raw_frame->stamp);
+    logger->warn("  {}", e.what());
+    fallback_smoother();
+    return nullptr;
   }
 
   return frames[current];

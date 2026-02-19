@@ -130,6 +130,10 @@ PreprocessedFrame::Ptr CloudPreprocessor::preprocess_impl(const RawPoints::Const
   if (indices.size() < 100) {
     spdlog::warn("too few points in the filtered cloud ({} points)", indices.size());
   }
+  if (indices.size() < 50) {
+    spdlog::warn("skip frame with too few points after filtering ({})", indices.size());
+    return nullptr;
+  }
 
   // Sort by time
   std::sort(indices.begin(), indices.end(), [&](const int lhs, const int rhs) { return frame->times[lhs] < frame->times[rhs]; });

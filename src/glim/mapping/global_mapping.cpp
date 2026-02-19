@@ -473,8 +473,7 @@ std::shared_ptr<gtsam::NonlinearFactorGraph> GlobalMapping::create_matching_cost
   }
 
   if (previous_overlap < std::max(0.25, params.min_implicit_loop_overlap)) {
-    logger->warn("previous submap has only a small overlap with the current submap ({})", previous_overlap);
-    logger->warn("create a between factor to prevent the submap from being isolated");
+    logger->info("previous submap has low overlap ({}) with current; add between factor", previous_overlap);
     const int last = current - 1;
     const gtsam::Pose3 init_delta = gtsam::Pose3((submaps[last]->T_world_origin.inverse() * submaps[current]->T_world_origin).matrix());
     factors->add(gtsam::make_shared<gtsam::BetweenFactor<gtsam::Pose3>>(X(last), X(current), init_delta, gtsam::noiseModel::Isotropic::Precision(6, 1e6)));
