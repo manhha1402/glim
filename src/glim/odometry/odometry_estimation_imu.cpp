@@ -14,6 +14,7 @@
 #include <glim/util/config.hpp>
 #include <glim/util/convert_to_string.hpp>
 #include <glim/common/imu_integration.hpp>
+#include <glim/common/imu_validation.hpp>
 #include <glim/common/cloud_deskewing.hpp>
 #include <glim/common/cloud_covariance_estimation.hpp>
 #include <glim/odometry/initial_state_estimation.hpp>
